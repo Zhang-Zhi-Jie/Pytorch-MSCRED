@@ -99,11 +99,11 @@ if __name__ == '__main__':
                         effective_step=[4]).to("cpu")
     loss_fn = torch.nn.MSELoss()
 
-    input = Variable(torch.randn(1, 512, 64, 32)).to("cpu")
+    input = Variable(torch.randn(5, 512, 64, 32)).to("cpu")
     target = Variable(torch.randn(1, 32, 64, 32)).double().to("cpu")
 
     output = convlstm(input)
-    print(output)
     output = output[0][0].double()
-    res = torch.autograd.gradcheck(loss_fn, (output, target), eps=1e-6, raise_exception=True)
-    print(res)
+    print(output.shape)
+    # res = torch.autograd.gradcheck(loss_fn, (output, target), eps=1e-6, raise_exception=True)
+    # print(res)

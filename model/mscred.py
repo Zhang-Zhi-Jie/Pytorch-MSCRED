@@ -2,16 +2,18 @@ import torch
 import torch.nn as nn
 import numpy as np
 from model.convolution_lstm import ConvLSTM
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def attention(ConvLstm_out):
     attention_w = []
     for k in range(5):
-            alpha = torch.mul(ConvLstm_out[k], ConvLstm_out[-1])/5
-            m = nn.Softmax(dim=1)
-            a = m(alpha).detach().numpy()
-            attention_w.append(a)
-    attention_w = torch.from_numpy(np.array(attention_w))
-    convLstmOut = torch.matmul(attention_w, ConvLstm_out).sum(0)
+        attention_w.append(torch.sum(torch.mul(ConvLstm_out[k], ConvLstm_out[-1]))/5)
+    m = nn.Softmax()
+    attention_w = torch.reshape(m(torch.stack(attention_w)), (-1, 5))
+    cl_out_shape = ConvLstm_out.shape
+    ConvLstm_out = torch.reshape(ConvLstm_out, (5, -1))
+    convLstmOut = torch.matmul(attention_w, ConvLstm_out)
+    convLstmOut = torch.reshape(convLstmOut, (cl_out_shape[1], cl_out_shape[2], cl_out_shape[3]))
     return convLstmOut
 
 class CnnEncoder(nn.Module):
@@ -28,9 +30,9 @@ class CnnEncoder(nn.Module):
         self.conv3 = nn.Sequential(
             nn.Conv2d(64, 128, 2, (2, 2), 1),
             nn.SELU()
-        )
+        )   
         self.conv4 = nn.Sequential(
-            nn.Conv2d(128, 256, 3, (2, 2), 1),
+            nn.Conv2d(128, 256, 2, (2, 2), 0),
             nn.SELU()
         )
     def forward(self, X):
@@ -44,15 +46,14 @@ class CnnEncoder(nn.Module):
 class Conv_LSTM(nn.Module):
     def __init__(self):
         super(Conv_LSTM, self).__init__()
-        self.conv1_lstm = ConvLSTM(input_channels=32, hidden_channels=[32, 32, 32], 
+        self.conv1_lstm = ConvLSTM(input_channels=32, hidden_channels=[32], 
                                    kernel_size=3, step=5, effective_step=[4])
-        self.conv2_lstm = ConvLSTM(input_channels=64, hidden_channels=[64, 64, 64], 
+        self.conv2_lstm = ConvLSTM(input_channels=64, hidden_channels=[64], 
                                    kernel_size=3, step=5, effective_step=[4])
-        self.conv3_lstm = ConvLSTM(input_channels=128, hidden_channels=[128, 128, 128], 
+        self.conv3_lstm = ConvLSTM(input_channels=128, hidden_channels=[128], 
                                    kernel_size=3, step=5, effective_step=[4])
-        self.conv4_lstm = ConvLSTM(input_channels=256, hidden_channels=[256, 256, 256], 
+        self.conv4_lstm = ConvLSTM(input_channels=256, hidden_channels=[256], 
                                    kernel_size=3, step=5, effective_step=[4])
-
 
     def forward(self, conv1_out, conv2_out, 
                 conv3_out, conv4_out):
@@ -70,19 +71,19 @@ class CnnDecoder(nn.Module):
     def __init__(self, in_channels):
         super(CnnDecoder, self).__init__()
         self.deconv4 = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=in_channels, out_channels=128, kernel_size=2, stride=[2, 2], padding=0),
+            nn.ConvTranspose2d(in_channels, 128, 2, 2, 0, 0),
             nn.SELU()
         )
         self.deconv3 = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=256, out_channels=64, kernel_size=3, stride=[2, 2], padding=1),
+            nn.ConvTranspose2d(256, 64, 2, 2, 1, 1),
             nn.SELU()
         )
         self.deconv2 = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=128, out_channels=32, kernel_size=2, stride=[2, 2]),
+            nn.ConvTranspose2d(128, 32, 3, 2, 1, 1),
             nn.SELU()
         )
         self.deconv1 = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=64, out_channels=3, kernel_size=3, stride=[1, 1], padding=1),
+            nn.ConvTranspose2d(64, 3, 3, 1, 1, 0),
             nn.SELU()
         )
     
